@@ -1,4 +1,4 @@
-# 控制校正验算器
+# 控制校正验算器OneCtrl
 
 一个把「控制理论作业/考试」里手算出来的每一步都验证一遍的本地小工具：输入原开环传递函数 `G₀(s)` 和校正环节 `Gc(s)`，它会把 Bode、阶跃、根轨迹、Nyquist、稳定性判据、非线性描述函数全部算给你看，并与浏览器里的实时预览互相印证。
 
@@ -35,18 +35,5 @@ python ctrl_web.py --no-open        # 默认 http://127.0.0.1:8000
 
 **工具**：校正设计、离散化（Tustin）验算等
 
-## 工程备注
 
-- 临界稳定（极点落在虚轴/原点）是独立状态：全链路琥珀色警告，算不出的量（`σ`/`t_p`/`t_s`/`y(∞)`/`ζ`/`ω_n`）直接不显示或标「不适用」，而不是硬给一个数
-- 相平面卡带「主导性检查」：若闭环还有比所选极点对更靠右的根（例如 `G₀=-1/(s(s²-1))`，闭环 `s³-s-1=0` 有根 `+1.3247`），卡片会标「稳定焦点（局部）」并把稳定性改写成「不稳定（另有极点 1.32）」
-- `node _ph_test.js` 是相平面判据的 8 个用例（从 `static/phase.js` 抽取 `classify()` 直接跑）
 
-## 部署
-
-`deploy/` 下是服务器部署脚本（systemd 单元、Dockerfile、nginx 反代、通知渠道示例）。打包用：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File build-deploy.ps1
-```
-
-生成的 `deploy-package.zip` 含 9 个 `ctrl_*.py`、`templates/`、`static/`、`deploy/`，服务器上 `bash ~/deploy/update.sh` 完成解压、覆盖、重启与自检。
