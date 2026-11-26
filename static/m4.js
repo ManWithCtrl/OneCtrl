@@ -172,9 +172,15 @@
     const actual = LC.stepResponse(p.cl.num, p.cl.den, 900);
     const met = LC.stepMetrics(actual.t, actual.y);
     const d = dominant(p.cl.den);
+    /* 闭环直流增益 Φ(0)=cl_num(0)/cl_den(0)：二阶梯近似必须乘上它，
+       否则像 G₀=1/(s+1)^2（Φ(0)=0.5）会把近似画成稳态 1.0，与实际 0.5 差一倍。 */
+    const nc = p.cl.num, dc = p.cl.den;
+    const n0 = nc.length ? nc[nc.length - 1] : 0;
+    const d0 = dc.length ? dc[dc.length - 1] : 0;
+    const kcl = Math.abs(d0) > 1e-12 && isFinite(n0 / d0) ? n0 / d0 : 1;
     let approx = null, amet = null, rms = null;
     if (d && d.type !== 'marginal') {
-      approx = LC.stepResponse([d.a2], [1, d.a1, d.a2], 900);
+      approx = LC.stepResponse([d.a2 * kcl], [1, d.a1, d.a2], 900);
       amet = LC.stepMetrics(approx.t, approx.y);
       let se = 0;
       for (let i = 0; i < actual.t.length; i++) {
@@ -183,7 +189,7 @@
       }
       rms = Math.sqrt(se / actual.t.length);
     }
-    return { actual, met, d, approx, amet, rms, zeros: LC.roots(p.cl.num) };
+    return { actual, met, d, approx, amet, rms, kcl, zeros: LC.roots(p.cl.num) };
   }
 
   function drawDom() {
@@ -231,11 +237,13 @@
       return;
     }
     if (!d) { rd.textContent = '当前闭环没有可用的二阶主导对。'; return; }
-    const er = S.rms != null ? S.rms / Math.max(1e-9, 1) * 100 : NaN;
+    const er = S.rms != null ? S.rms * 100 : NaN;
+    const erTxt = !isFinite(er) ? '—' : (er < 0.005 ? '0.00' : fmt(er, 2));
     rd.innerHTML = '主导' + (d.type === 'complex' ? '共轭对' : '实极点对') + '　σ=' + fmt(d.sigma, 3) +
-      '　ζ=' + fmt(d.zeta, 3) + '　ω<sub>n</sub>=' + fmt(d.wn, 3) + ' rad/s<br>' +
+      '　ζ=' + fmt(d.zeta, 3) + '　ω<sub>n</sub>=' + fmt(d.wn, 3) + ' rad/s' +
+      '　Φ(0)=' + fmt(S.kcl == null ? 1 : S.kcl, 3) + '<br>' +
       '实际 σ%=' + fmt(S.actualMet.sigma, 1) + '，近似 σ%=' + fmt(S.approxMet.sigma, 1) +
-      '　实际 t<sub>s</sub>=' + fmt(S.actualMet.ts * 1000, 0) + ' ms，近似 t<sub>s</sub>=' + fmt(S.approxMet.ts * 1000, 0) + ' ms　RMS=' + fmt(er, 2) + '%<br>' +
+      '　实际 t<sub>s</sub>=' + fmt(S.actualMet.ts * 1000, 0) + ' ms，近似 t<sub>s</sub>=' + fmt(S.approxMet.ts * 1000, 0) + ' ms　RMS=' + erTxt + '%<br>' +
       '闭环零点：' + (S.zeros && S.zeros.length ? S.zeros.slice(0, 4).map((z) => fmt(z.re, 2) + (Math.abs(z.im) > 1e-6 ? '±' + fmt(Math.abs(z.im), 2) + 'j' : '')).join('，') : '无') +
       '（与主导极点同量级时二阶近似偏差大）';
   }
@@ -254,6 +262,7 @@
     const dd = domCompute();
     S.actual = dd.actual; S.actualMet = dd.met;
     S.approx = dd.approx; S.approxMet = dd.amet; S.dom = dd.d; S.rms = dd.rms;
+    S.kcl = dd.kcl;
     S.zeros = dd.zeros || [];
     drawSine();
     drawDom();
