@@ -368,6 +368,8 @@ line.live-grid{stroke:var(--line); stroke-width:0.8; opacity:.55}
 .phase-card{padding-bottom:36px}
 .phase-tools{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
 .phase-tools label{display:flex; align-items:center; gap:6px; white-space:nowrap}
+.phase-tools select{border:1px solid var(--line); background:var(--card); color:var(--ink);
+  border-radius:8px; padding:4px 6px; font-size:12px; font-family:inherit; cursor:pointer}
 .phase-tools input{width:110px; accent-color:var(--accent)}
 .phase-tools b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--ink); min-width:42px}
 .phase-grid{display:grid; grid-template-columns:minmax(0,1.25fr) minmax(190px,.75fr); gap:16px; align-items:start; margin-top:8px}

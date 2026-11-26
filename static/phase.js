@@ -13,7 +13,7 @@
   const S = {
     model: null, a1: 0, a2: 1, wn: 1, R: 2.5, type: '', stable: true,
     custom: [], roots: null, order: 0, layout: null,
-    baseNum: null, baseDen: null, gain: 1, raf: 0,
+    baseNum: null, baseDen: null, gain: 1, raf: 0, sys: 'cl',
   };
 
   function add(parent, tag, attrs) {
@@ -241,15 +241,23 @@
       '<div class="ph-kv"><span>平衡点</span><b>(0, 0)</b></div>';
     const note = $('phaseNote');
     if (note) {
-      note.textContent = (S.fromOpen
-        ? '闭环特征式退化（极点落在原点，临界稳定），改画开环 G₀ 的相图：平衡点类型由开环极点决定。'
-        : S.order > 2
-          ? '闭环 ' + S.order + ' 阶，取' + (S.osc ? '主导振荡极点对' : '两个主导实极点') + '作二阶近似；其余极点更快。'
-          : '闭环二阶系统，相图与特征根一一对应。')
+      let base;
+      if (S.fromOpen) {
+        base = S.olWanted
+          ? '开环 G₀(s) 的相图：平衡点类型由开环极点决定（与预览增益无关）。'
+          : '闭环特征式退化（极点落在原点，临界稳定），改画开环 G₀ 的相图：平衡点类型由开环极点决定。';
+      } else if (S.olWanted) {
+        base = '开环 G₀(s) 为 ' + S.order + ' 阶，不是二阶自治系统，此处仍画闭环相图。';
+      } else if (S.order > 2) {
+        base = '闭环 ' + S.order + ' 阶，取' + (S.osc ? '主导振荡极点对' : '两个主导实极点') + '作二阶近似；其余极点更快。';
+      } else {
+        base = '闭环二阶系统，相图与特征根一一对应。';
+      }
+      note.textContent = base
         + (badApprox
           ? ' 注意：闭环另有极点 ' + bStr + ' 比这一对更靠右，二阶近似只描述该对根附近的局部行为，整体稳定性以稳定性卡为准。'
           : '')
-        + (S.gain !== 1 ? ' · 预览增益 ×' + S.gain.toFixed(2) : '');
+        + (S.gain !== 1 && !S.fromOpen ? ' · 预览增益 ×' + S.gain.toFixed(2) : '');
     }
   }
 
@@ -257,15 +265,20 @@
     if (!S.model) return;
     const num = S.baseNum ? LC.polyscale(S.baseNum, S.gain) : null;
     const den = S.baseDen ? LC.polyadd(S.baseDen, num) : (S.model.cl_den || []);
-    let ap = approximate(S.model, den);
+    const wantOl = S.sys === 'ol';
+    const olOk = !!(S.baseDen && S.baseDen.length === 3 && Math.abs(S.baseDen[0]) > 1e-12);
+    const openAp = () => {
+      if (!olOk) return null;
+      const c = S.baseDen[0];
+      return approximate(S.model, S.baseDen.map((v) => v / c));
+    };
+    /* 选「开环 G₀」时优先画开环分母的相图（与预览增益无关）。 */
+    let ap = wantOl ? openAp() : null;
+    let fromOpen = !!ap;
+    if (!ap) { ap = approximate(S.model, den); fromOpen = false; }
     /* 闭环特征式退化（原点有根，二阶近似不存在）时，退回画开环 G₀ 的相图：
        例如 G₀=1/(s²-1) 闭环 Φ=s²/(s²-1) → 特征式 s²，开环极点 ±1 才对应经典鞍点。 */
-    let fromOpen = false;
-    if (!ap && S.baseDen && S.baseDen.length === 3 && Math.abs(S.baseDen[0]) > 1e-12) {
-      const c = S.baseDen[0];
-      const ap2 = approximate(S.model, S.baseDen.map((v) => v / c));
-      if (ap2) { ap = ap2; fromOpen = true; }
-    }
+    if (!ap) { ap = openAp(); fromOpen = !!ap; }
     const card = $('phaseCard');
     const tag = $('phaseTag');
     if (!ap) {
@@ -274,7 +287,12 @@
     }
     if (card) card.hidden = false;
     S.fromOpen = fromOpen;
-    if (tag) tag.textContent = fromOpen ? '开环二阶（闭环退化）' : (ap.order > 2 ? '主导二阶' : '闭环二阶');
+    S.olWanted = wantOl;
+    if (tag) {
+      tag.textContent = fromOpen
+        ? (wantOl ? '开环 G₀' : '开环二阶（闭环退化）')
+        : (ap.order > 2 ? '主导二阶' : '闭环二阶');
+    }
     S.roots = ap; S.a1 = ap.a1; S.a2 = ap.a2; S.order = ap.order; S.osc = ap.osc;
     S.approxOk = ap.approxOk !== false; S.blocker = ap.blocker || null;
     S.wn = Math.sqrt(Math.abs(ap.a2)) || 1;
@@ -334,6 +352,17 @@
     }
     const reset = $('phaseReset');
     if (reset) reset.addEventListener('click', () => { S.custom = []; draw(); });
+    const sysSel = $('phaseSys');
+    if (sysSel) {
+      const q = new URLSearchParams(location.search).get('psys');
+      if (q === 'ol' || q === 'cl') S.sys = q;
+      sysSel.value = S.sys;
+      sysSel.addEventListener('change', () => {
+        S.sys = sysSel.value === 'ol' ? 'ol' : 'cl';
+        S.custom = [];
+        rebuild();
+      });
+    }
     const liveK = $('liveK');
     if (liveK) liveK.addEventListener('input', () => setGain(+liveK.value || 1));
   }
