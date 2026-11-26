@@ -1,0 +1,18 @@
+# 本仓库只发布「控制校正验算器」本体。
+# 工作区里还有大量与本项目无关的内容（其它项目目录、MATLAB 实验脚本、过程截图、
+# pip 缓存等，合计 11 GB），所以这里用「先全忽略、再逐项放行」的白名单写法。
+*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/requirements.txt
+!/build-deploy.ps1
+!/ctrl_*.py
+!/templates/
+!/templates/index.html
+!/static/
+!/static/*.js
+!/static/*.css
+!/deploy/
+!/deploy/*
+!/_ph_test.js

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#fbfcfe">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="校正验算">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>控制校正验算器</title>
+<link rel="stylesheet" href="/static/style.css">
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">∑</div>
+    <div class="titles">
+      <h1>控制校正验算器</h1>
+      <p>开环传函 + 校正环节 → Bode 对比 · 阶跃 · 根轨迹 · 全部指标</p>
+    </div>
+    <button id="theme" title="切换深浅色">◐</button>
+  </header>
+
+  <nav class="topnav" id="nav">
+    <button type="button" class="chip on" data-view="analysis">分析</button>
+    <button type="button" class="chip" data-view="tools">工具箱</button>
+  </nav>
+
+  <section class="view" id="view-analysis">
+    <section class="card">
+      <div class="field">
+        <label><b>原开环 G₀(s)</b><i>普通表达式或 LaTeX</i></label>
+        <input id="g0" type="text" spellcheck="false" autocapitalize="off" autocorrect="off"
+               value="100*(0.1s+1)/((s+1)*(0.2s+1)*(0.02s+1))" placeholder="例如 10/(s*(s+1))">
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label><b>校正环节 Gc</b><i>留空 = 只看原系统</i></label>
+          <input id="gc" type="text" spellcheck="false" autocapitalize="off" autocorrect="off"
+                 value="(s/12.12+1)/(s/70.34+1)" placeholder="例如 (s/12.12+1)/(s/70.34+1)">
+        </div>
+        <div class="field">
+          <label><b>采样周期 T</b><i>填了就按离散算</i></label>
+          <input id="T" type="text" inputmode="decimal" spellcheck="false" value="" placeholder="留空 = 连续系统">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="btn">开始分析</button>
+        <div id="msg"></div>
+      </div>
+      <div class="chips">
+        <span class="chip" data-g0="100*(0.1s+1)/((s+1)*(0.2s+1)*(0.02s+1))" data-gc="(s/12.12+1)/(s/70.34+1)" data-t="">示例① 超前</span>
+        <span class="chip" data-g0="10*(s/2+1)/(s*(s+1)*(s/20+1))" data-gc="2*(s+1)/(2s+1)" data-t="">示例② 滞后</span>
+        <span class="chip" data-g0="10*(s/2+1)/(s*(s+1)*(s/20+1))" data-gc="2*(10s+1)/(20s+1)" data-t="">示例③ 窄带滞后</span>
+        <span class="chip" data-g0="10/(s*(s+1))" data-gc="" data-t="">示例④ 只看原系统</span>
+        <span class="chip" data-g0="\\frac{10}{s(s+1)}" data-gc="\\frac{2s+1}{0.5s+1}" data-t="">示例⑤ LaTeX</span>
+        <span class="chip" data-g0="10/(s*(s+1))" data-gc="(z-0.8)/(z-0.3)" data-t="0.1">示例⑥ 离散 D(z)</span>
+      </div>
+      <div class="hint">
+        支持 <code>s^2</code>、<code>0.5s</code>、<code>2s+1</code>，也支持 <code>\frac{a}{b}</code>；
+        离散模式默认零阶保持，写成 z 的 D(z) 直接用，写成 s 的 D(s) 自动双线性变换。
+      </div>
+    </section>
+
+    <section id="result" hidden>
+      <div class="tiles" id="tiles"></div>
+      <section class="card" id="fxCard" hidden>
+        <div class="sec-title">公式回显 <span id="fxNote"></span>
+          <span class="switch" id="fxSwitch">
+            <button type="button" class="chip on" data-fx="factor">零极点形式</button>
+            <button type="button" class="chip" data-fx="poly">多项式形式</button>
+          </span>
+        </div>
+        <div class="fx-src" id="fxSrc"></div>
+        <div class="fx-list" id="fxBody"></div>
+      </section>
+      <div class="empty" id="fxEmpty" hidden>
+        <p>这次没有生成公式回显。</p>
+        <p>检查 G₀ / Gc 是否可解析，或改回连续系统再试。</p>
+      </div>
+      <section class="card live-card" id="liveCard" hidden>
+        <div class="live-head">
+          <div>
+            <div class="sec-title">实时联动 <span class="live-tag">浏览器预览</span></div>
+            <div class="hint" id="liveNote">连续线性 · 单位负反馈</div>
+          </div>
+          <label class="live-gain">预览增益
+            <input id="liveK" type="range" min="0.1" max="5" step="0.01" value="1">
+            <b id="liveKv">×1.00</b>
+          </label>
+        </div>
+        <div class="live-grid">
+          <div class="live-panel">
+            <div class="live-title">Bode 图
+              <span class="live-key"><i class="ke"></i>精确 <i class="ka"></i>渐近</span>
+            </div>
+            <svg id="bodeLive" viewBox="0 0 640 360" role="img" aria-label="实时 Bode 图"></svg>
+            <div class="live-read" id="bodeRead"></div>
+          </div>
+          <div class="live-panel">
+            <div class="live-title">闭环阶跃 <span>同参数联动</span></div>
+            <svg id="stepLive" viewBox="0 0 640 300" role="img" aria-label="闭环阶跃响应"></svg>
+            <div class="live-read" id="stepRead"></div>
+          </div>
+        </div>
+        <div class="hint">拖动 K 或移动指针实时预览；精确指标仍以“开始分析”的服务端结果为准。</div>
+      </section>
+      <section class="card m4-card" id="m4Card" hidden>
+        <div class="live-head">
+          <div>
+            <div class="sec-title">正弦稳态与主导极点 <span class="live-tag">频域 ↔ 时域</span></div>
+            <div class="hint" id="m4Note">拖动上方 Bode 游标，正弦稳态随频率变化；另一栏用主导极点近似对照阶跃。</div>
+          </div>
+          <div class="m4-tools">
+            <label>幅值 <input id="m4Amp" type="number" value="1" step="0.1" min="0.01"></label>
+            <select id="m4Tf" aria-label="传递函数">
+              <option value="cl">闭环 Φ</option>
+              <option value="ol">开环 L</option>
+            </select>
+            <button type="button" class="chip" id="m4Export">导出报告</button>
+          </div>
+        </div>
+        <div class="m4-grid">
+          <div class="m4-panel">
+            <div class="live-title">正弦稳态
+              <span class="live-key"><i class="m4-in-key"></i>输入 r(t) <i class="m4-out-key"></i>输出 y<sub>ss</sub>(t)</span>
+              <b class="m4-w" id="m4Wv">ω=—</b>
+            </div>
+            <svg id="m4Sine" viewBox="0 0 640 260" role="img" aria-label="正弦稳态输入输出波形"></svg>
+            <div class="live-read" id="m4SineRead"></div>
+          </div>
+          <div class="m4-panel">
+            <div class="live-title">主导极点近似
+              <span class="live-key"><i class="ke"></i>实际阶跃 <i class="m4-ka"></i>二阶近似</span>
+            </div>
+            <svg id="m4Dom" viewBox="0 0 640 260" role="img" aria-label="实际阶跃与主导极点近似对比"></svg>
+            <div class="live-read" id="m4DomRead"></div>
+          </div>
+        </div>
+        <div class="hint">正弦稳态取 <b>y<sub>ss</sub>(t)=A|G(jω)|sin(ωt+∠G(jω))</b>；主导极点近似保留最靠近虚轴的共轭对，其余极点视为快速模态；它忽略闭环零点，因此含零点时超调/调节时间可能明显偏离。仅作预览，精确值以服务端结果为准。</div>
+      </section>
+
+      <section class="card scope-card" id="scopeCard" hidden>
+        <div class="live-head">
+          <div>
+            <div class="sec-title">示波器 <span class="live-tag">时域</span></div>
+            <div class="hint" id="scopeNote">CH1 r(t) · CH2 c(t) · CH3 e(t)；鼠标/手指拖动查看读数。</div>
+          </div>
+          <div class="scope-tools">
+            <label>时间窗
+              <select id="scopeSpan">
+                <option value="0.5">0.5 s</option>
+                <option value="1" selected>1 s</option>
+                <option value="2">2 s</option>
+                <option value="5">5 s</option>
+              </select>
+            </label>
+            <button type="button" class="chip" id="scopeRun">暂停</button>
+            <button type="button" class="chip" id="scopeReset">重扫</button>
+          </div>
+        </div>
+        <div class="scope-shell" id="scopeShell">
+          <canvas id="scopeCv" aria-label="阶跃响应示波器"></canvas>
+        </div>
+        <div class="scope-foot">
+          <div class="scope-legend">
+            <label><input type="checkbox" id="scopeChR" checked><i class="chr"></i>r(t)</label>
+            <label><input type="checkbox" id="scopeChC" checked><i class="chc"></i>c(t)</label>
+            <label><input type="checkbox" id="scopeChE" checked><i class="che"></i>e(t)</label>
+            <span id="scopeMetrics"></span>
+          </div>
+          <div class="scope-cursor" id="scopeCursor">移动指针查看读数</div>
+        </div>
+      </section>
+
+      <section class="card phase-card" id="phaseCard" hidden>
+        <div class="live-head">
+          <div>
+            <div class="sec-title">相平面 <span class="live-tag" id="phaseTag">主导二阶</span></div>
+            <div class="hint" id="phaseNote"></div>
+          </div>
+          <div class="phase-tools">
+            <label>视野 ±<input id="phaseR" type="range" min="1" max="6" step="0.5" value="2.5"><b id="phaseRv">±2.5</b></label>
+            <button type="button" class="chip" id="phaseReset">重置轨迹</button>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div class="phase-plot">
+            <svg id="phaseSvg" viewBox="0 0 360 360" role="img" aria-label="相平面矢量场与轨迹"></svg>
+          </div>
+          <div class="phase-side">
+            <div id="phaseInfo"></div>
+            <div class="hint">横轴为 x，纵轴为 ẋ/ωₙ；点击图内任意点添加一条轨迹，拖动“视野”缩放。橙色为重点查看的轨迹。</div>
+          </div>
+        </div>
+      </section>
+      <section class="card rl-card" id="rlCard" hidden>
+        <div class="live-head">
+          <div>
+            <div class="sec-title">根轨迹 <span class="live-tag">K 联动</span></div>
+            <div class="hint" id="rlNote"></div>
+          </div>
+          <div class="phase-tools">
+            <label>增益 <input id="rlK" type="range" min="0" max="1000" step="1" value="400"><b id="rlKv">K=1.00</b></label>
+            <button type="button" class="chip" id="rlReset">重置</button>
+          </div>
+        </div>
+        <div class="rl-grid">
+          <div class="rl-plot">
+            <svg id="rlSvg" viewBox="0 0 360 360" role="img" aria-label="根轨迹与当前闭环极点"></svg>
+          </div>
+          <div class="rl-side">
+            <div id="rlInfo"></div>
+            <div class="hint">红色圆点开环极点，绿色圆点开环零点，彩色圆点为当前 K 闭环极点；虚线为渐近线，橙色点为分离点。</div>
+          </div>
+        </div>
+      </section>
+      <section class="card nyq-card" id="nyqCard" hidden>
+        <div class="live-head">
+          <div>
+            <div class="sec-title">Nyquist 交互 <span class="live-tag">拖动平移 · 滚轮/二指缩放</span></div>
+            <div class="hint" id="nyqNote">蓝线 = 正频率 L(jω)，浅蓝 = 镜像；拖动平移，滚轮/二指缩放。判据数值仍见下方稳定性判据。</div>
+          </div>
+          <div class="phase-tools">
+            <label class="zoom-inline">增益 K
+            <input id="nyqK" type="range" min="0" max="1000" step="1" value="500">
+            <b id="nyqKv">K=1.00</b>
+          </label>
+          <button type="button" class="chip" id="nyqReset">回到初始视野</button>
+          </div>
+        </div>
+        <div class="nyq-plot">
+          <svg id="nyqSvg" viewBox="0 0 360 360" role="img" aria-label="Nyquist 交互图"></svg>
+        </div>
+        <div class="nyq-foot">
+          <span id="nyqRead">拖动画面平移，滚轮或双指缩放；红点为 (−1,j0)。</span>
+          <span class="hint">判据图同时保留在稳定性判据卡中。</span>
+        </div>
+      </section>
+      <section class="card" id="compCard" hidden>
+        <div class="sec-title">串联校正（自动识别） <span id="compNote"></span></div>
+        <div class="comp-body" id="compBody"></div>
+      </section>
+      <section class="card">
+        <div class="sec-title">曲线 <span id="figNote"></span></div>
+        <div class="opts">
+          <label>第 (d) 面板
+            <select id="panel">
+              <option value="rl">根轨迹</option>
+              <option value="poles">闭环极点</option>
+            </select>
+          </label>
+          <label>输入
+            <select id="kind">
+              <option value="step">单位阶跃</option>
+              <option value="ramp">单位斜坡</option>
+              <option value="accel">单位加速度</option>
+            </select>
+          </label>
+          <label>非线性环节
+            <select id="nl">
+              <option value="none">无（线性）</option>
+              <option value="relay">理想继电器</option>
+              <option value="relay_dz">带死区继电器</option>
+              <option value="relay_hyst">滞环继电器</option>
+              <option value="sat">饱和</option>
+            </select>
+          </label>
+          <label id="nlP" hidden>幅值 M
+            <input id="nlM" type="number" step="0.1" min="0.01" value="1" style="width:70px">
+          </label>
+          <label id="nlA" hidden>死区 / 线性区 / 阈值 a
+            <input id="nla" type="number" step="0.1" min="0.01" value="1" style="width:70px">
+          </label>
+        </div>
+        <p class="hint" id="nlHint" hidden>非线性环节参与闭环时域仿真：e → N(e) → G，曲线与 σ/t<sub>s</sub>/t<sub>p</sub> 均按仿真结果统计（与线性指标不可直接对比）。</p>
+        <div class="df-summary" id="dfSummary" hidden>
+          <div class="df-summary-h">描述函数法 <span id="dfSummaryNote"></span></div>
+          <div id="dfSummaryBody"></div>
+        </div>
+        <a id="figLink" target="_blank" rel="noopener" title="点开看大图"><img id="fig" alt="结果图"></a>
+        <div id="figsM" class="figs-m" hidden></div>
+      </section>
+
+      <section class="card" id="nichCard" hidden>
+        <div class="sec-title">闭环幅相特性 <span class="muted" id="nichText"></span></div>
+        <a id="nichLink" target="_blank" rel="noopener" title="点开看大图"><img id="nichImg" alt="Nichols"></a>
+      </section>
+
+      <section class="card" id="stabCard" hidden>
+        <div class="sec-title">稳定性判据 <span id="stabNote"></span><label class="zoom-inline" id="nyqZoomWrap">Nyquist 视野 <input id="nyqZoom" type="range" min="10" max="1000" step="10" value="500"><b id="nyqZoomv">×1.0</b></label></div>
+        <div class="stab-text" id="stabText"></div>
+        <a id="stabLink" target="_blank" rel="noopener" title="点开看大图"><img id="fig2" alt="稳定性判据图"></a>
+        <div id="stabsM" class="figs-m" hidden></div>
+      </section>
+
+      <details class="card">
+        <summary>详细数据</summary>
+        <pre id="txt"></pre>
+      </details>
+    </section>
+  </section>
+
+  <section class="view" id="view-tools" hidden>
+    <section class="card" id="toolCard">
+      <div class="sec-title">工具箱 <span>换算 · 设计 · 速查</span></div>
+      <div class="tool-tabs" id="toolTabs">
+        <button type="button" class="chip on" data-tool="second">二阶指标</button>
+        <button type="button" class="chip" data-tool="leadlag">超前 / 滞后</button>
+        <button type="button" class="chip" data-tool="ess">稳态误差</button>
+        <button type="button" class="chip" data-tool="conv">指标换算</button>
+        <button type="button" class="chip" data-tool="expect">期望特性</button>
+        <button type="button" class="chip" data-tool="freq">频率响应</button>
+        <button type="button" class="chip" data-tool="zmap">s ↔ z</button>
+      </div>
+
+      <div class="tool-pane on" id="tool-second">
+        <div class="tool-grid">
+          <label>阻尼比 ζ（ξ）<input type="number" id="t-zeta" step="0.05" min="0.01" max="1.5" value="0.5"></label>
+          <label>自然频率 ω<sub>n</sub> (rad/s)<input type="number" id="t-wn" step="1" min="0.01" value="10"></label>
+        </div>
+        <div class="tool-kv" id="t-second-out"></div>
+        <div class="calc" id="t-second-fx"></div>
+        <div class="tool-split"></div>
+        <div class="tool-grid">
+          <label>超调量 δ (%)<input type="number" id="t-sigma" step="0.5" min="0.1" max="99" value="16.3"></label>
+          <label>反推阻尼比 ζ<output id="t-zeta-inv">0.500</output></label>
+        </div>
+        <div class="calc" id="t-sigma-fx"></div>
+      </div>
+
+      <div class="tool-pane" id="tool-leadlag">
+        <div class="tool-grid">
+          <label>校正类型
+            <select id="t-mode">
+              <option value="lead">超前（提相角）</option>
+              <option value="lag">滞后（降增益）</option>
+            </select>
+          </label>
+          <label>最大相角 |φ<sub>m</sub>| (°)<input type="number" id="t-phi" step="1" min="1" max="80" value="40"></label>
+          <label>对应频率 ω<sub>m</sub> (rad/s)<input type="number" id="t-wm" step="1" min="0.01" value="10"></label>
+        </div>
+        <div class="tool-kv" id="t-ll-out"></div>
+        <div class="tool-expr" id="t-ll-gc"></div>
+        <div class="calc" id="t-ll-fx"></div>
+        <button type="button" class="ghost" id="t-ll-fill">把 Gc 填进分析页并计算 →</button>
+      </div>
+
+      <div class="tool-pane" id="tool-ess">
+        <div class="tool-grid">
+          <label>开环增益 K<input type="number" id="t-k" step="0.5" min="0.01" value="10"></label>
+        </div>
+        <table class="ess-table" id="t-ess"></table>
+        <div class="calc" id="t-ess-fx"></div>
+      </div>
+
+      <div class="tool-pane" id="tool-conv">
+        <div class="tool-grid">
+          <label>已知组合
+            <select id="c-mode">
+              <option value="zw">ζ 与 ωn（正算）</option>
+              <option value="mw">Mr (dB) 与 ωb（反算）</option>
+              <option value="gw">γ (°) 与 ωb（反算）</option>
+              <option value="sd">ts(2%) 与 δ%（反算）</option>
+              <option value="pd">tp 与 δ%（反算）</option>
+            </select>
+          </label>
+          <label><span id="c-x-lab">阻尼比 ζ</span><input type="number" id="c-x" step="0.05" min="0.001" max="5" value="0.5"></label>
+          <label><span id="c-y-lab">自然频率 ωn (rad/s)</span><input type="number" id="c-y" step="1" min="0.01" value="10"></label>
+        </div>
+        <div class="tool-kv" id="c-out"></div>
+        <div class="calc" id="c-fx"></div>
+        <div class="tool-hint">
+          频域-时域换算按二阶主导极点近似：ω<sub>b</sub> 为 −3 dB 带宽，γ 为相角裕度，M<sub>r</sub> 为谐振峰值。
+          高阶系统若有一对主导极点，可先用该近似再回代验算。
+        </div>
+      </div>
+
+      <div class="tool-pane" id="tool-expect">
+        <div class="tool-grid">
+          <label>中频带宽 H（按 ω₃/ω₂）<input type="number" id="e-H" step="0.1" min="1.01" value="5"></label>
+          <label>截止频率 ωc (rad/s)<input type="number" id="e-wc" step="1" min="0.01" value="100"></label>
+        </div>
+        <div class="tool-kv" id="e-out"></div>
+        <div class="calc" id="e-fx"></div>
+        <div class="tool-hint">
+          综合法（期望特性法）II 型系统 −40/−20/−40 中频段：H=ω₃/ω₂，ω₂=2ωc/(H+1)，ω₃=2Hωc/(H+1)，
+          γ=arctan(ωc/ω₂)−arctan(ωc/ω₃)，M<sub>r</sub>≈1/sinγ。
+          若教材把带宽写作 ω₂/ω₃，输入其倒数即可。
+        </div>
+      </div>
+
+      <div class="tool-pane" id="tool-freq">
+        <div class="tool-grid">
+          <label>传递函数
+            <select id="f-tf">
+              <option value="L" selected>开环 L(jω)</option>
+              <option value="g0">原系统 G₀(jω)</option>
+              <option value="gc">校正环节 Gc(jω)</option>
+              <option value="cl">闭环 Φ(jω)</option>
+            </select>
+          </label>
+          <label>频率 ω (rad/s)<input type="number" id="f-w" step="0.1" min="0" value="10"></label>
+          <label>对应频率 f (Hz)<output id="f-hz">1.592</output></label>
+        </div>
+        <div class="tool-kv" id="f-out"></div>
+        <div class="calc" id="f-fx"></div>
+        <div class="tool-hint" id="f-hint">
+          读取当前「分析」页的传递函数系数：连续系统按 s=jω，离散系统按 z=e<sup>jωT</sup>。
+          先分析一次，再回到这里输入频率。
+        </div>
+      </div>
+
+      <div class="tool-pane" id="tool-zmap">
+        <div class="tool-grid">
+          <label>方向
+            <select id="z-dir">
+              <option value="s2z">s → z（e^sT）</option>
+              <option value="z2s">z → s（ln z / T）</option>
+            </select>
+          </label>
+          <label><span id="z-a-lab">实部 σ</span><input type="number" id="z-a" step="0.1" value="-2"></label>
+          <label><span id="z-b-lab">虚部 ω (rad/s)</span><input type="number" id="z-b" step="0.1" value="3"></label>
+          <label>采样周期 T (s)<input type="number" id="z-T" step="0.01" min="0.0001" value="0.1"></label>
+        </div>
+        <div class="tool-kv" id="z-out"></div>
+        <div class="tool-expr" id="z-expr"></div>
+        <div class="calc" id="z-fx"></div>
+        <div class="tool-hint">
+          这就是 s 平面到 z 平面的基本映射：每个极点/零点按 z<sub>i</sub> = e<sup>s<sub>i</sub>T</sup> 映射，
+          左半平面 → 单位圆内。注意它不等于零阶保持或双线性离散化；整段传函离散请在「分析」页填采样周期 T。
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <footer>本地运行 · 数据不出本机 · 同一 Wi-Fi 下手机可直接访问</footer>
+</div>
+
+<script src="/static/live-core.js"></script>
+<script src="/static/live.js"></script>
+<script src="/static/m4.js"></script>
+<script src="/static/scope.js"></script>
+<script src="/static/phase.js"></script>
+<script src="/static/rootlocus.js"></script>
+<script src="/static/nyquist.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

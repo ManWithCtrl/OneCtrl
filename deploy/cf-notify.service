@@ -1,0 +1,10 @@
+[Unit]
+Description=Notify new Cloudflare Quick Tunnel URL
+After=cf-tunnel.service network-online.target
+Wants=cf-tunnel.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/ctrl-checker/deploy/notify_url.py
+TimeoutStartSec=200
+SuccessExitStatus=2

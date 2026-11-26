@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for a new Cloudflare Quick Tunnel URL
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=2min
+Unit=cf-notify.service
+
+[Install]
+WantedBy=timers.target

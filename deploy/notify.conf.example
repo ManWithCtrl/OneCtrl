@@ -1,0 +1,26 @@
+# 复制到 /etc/ctrl-notify.conf 后按需填写（只有启用对应渠道的键才需要）
+# 至少要配一个渠道，否则脚本只提示不发送。
+
+# —— 渠道 1：Server 酱（推送到微信，推荐）——
+# 1) 微信扫码登录 https://sct.ftqq.com
+# 2) 复制 SendKey（形如 SCTxxxxxx）
+SERVERCHAN_KEY=
+
+# —— 渠道 2：PushPlus（也是微信，扫码即用）——
+# 登录 https://www.pushplus.plus 复制 token
+PUSHPLUS_TOKEN=
+
+# —— 渠道 3：邮件（QQ/163 邮箱的“授权码”，不是登录密码）——
+# QQ 邮箱：设置 → 账户 → 开启 SMTP → 生成授权码
+SMTP_HOST=smtp.qq.com
+SMTP_PORT=465
+SMTP_USER=you@qq.com
+SMTP_PASS=
+SMTP_TO=you@qq.com
+
+# —— 渠道 4：任意 webhook（企业微信机器人、飞书机器人、自建接口）——
+WEBHOOK_URL=
+
+# —— 可选：隧道相关 ——
+UNIT=cf-tunnel
+LOG_FILE=/home/ubuntu/cf-tunnel.log
